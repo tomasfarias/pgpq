@@ -4,16 +4,16 @@ from glob import glob
 from pathlib import Path
 from typing import Any, Iterator, List, Tuple
 
+import pgpq.encoders
+import pgpq.exceptions
+import pgpq.schema
+import psycopg
 import pyarrow as pa
 import pyarrow.ipc as paipc
 import pytest
-from testing.postgresql import Postgresql
-import psycopg
-
-import pgpq.schema
-import pgpq.encoders
 from pgpq import ArrowToPostgresBinaryEncoder
 from pgpq.schema import PostgresSchema
+from testing.postgresql import Postgresql
 
 
 @pytest.fixture(scope="session")
@@ -231,3 +231,41 @@ def test_custom_encoding(dbconn: Connection) -> None:
 
     rows = copy_buffer_and_get_rows(pg_schema, buffer, dbconn)
     assert rows == [([[]],), ([{"foo": "bar"}],), ([123],)]
+
+
+def test_new_with_encoders_raises():
+    batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array(
+                [1, 2, 3],
+                type=pa.int32(),
+            ),
+            pa.array(
+                [["[]"], ['{"foo":"bar"}'], ["123"]],
+                type=pa.list_(pa.field("field", pa.string())),
+            ),
+        ],
+        schema=pa.schema(
+            [
+                pa.field(
+                    "id",
+                    pa.int32(),
+                ),
+                pa.field(
+                    "json_list",
+                    pa.list_(pa.field("field", pa.string())),
+                ),
+            ]
+        ),
+    )
+
+    encoders = {
+        "json_list": pgpq.encoders.ListEncoderBuilder.new_with_inner(
+            batch.schema.field("json_list"),
+            pgpq.encoders.StringEncoderBuilder.new_with_output(
+                batch.schema.field("json_list").type.value_field, pgpq.schema.Jsonb()
+            ),
+        )
+    }
+
+    encoder = ArrowToPostgresBinaryEncoder.new_with_encoders(batch.schema, encoders)

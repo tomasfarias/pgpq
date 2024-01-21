@@ -221,3 +221,18 @@ EncoderBuilder = (
     | ListEncoderBuilder
     | LargeListEncoderBuilder
 )
+
+class FieldTooLarge(Exception):
+    pass
+
+class EncodeError(Exception):
+    pass
+
+class EncodingNotSupported(Exception):
+    pass
+
+class EncoderMissing(Exception):
+    pass
+
+class UnknownFields(Exception):
+    pass

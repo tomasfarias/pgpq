@@ -11,6 +11,7 @@ use arrow::record_batch::RecordBatch;
 use bytes::BytesMut;
 
 mod encoders;
+mod exceptions;
 mod pg_schema;
 mod utils;
 
@@ -32,7 +33,7 @@ impl ArrowToPostgresBinaryEncoder {
         let encoder = pgpq::ArrowToPostgresBinaryEncoder::try_new(
             &ArrowSchema::from_pyarrow(pyschema).unwrap(),
         )
-        .unwrap();
+        .map_err(|err| crate::exceptions::PgPqErrorKind(err))?;
         Ok(Self {
             encoder,
             buf: BytesMut::with_capacity(BUFF_SIZE),
@@ -53,8 +54,8 @@ impl ArrowToPostgresBinaryEncoder {
             encoders.insert(name, encoder);
         }
         let schema = &ArrowSchema::from_pyarrow(py_schema).unwrap();
-        let encoder =
-            pgpq::ArrowToPostgresBinaryEncoder::try_new_with_encoders(schema, &encoders).unwrap();
+        let encoder = pgpq::ArrowToPostgresBinaryEncoder::try_new_with_encoders(schema, &encoders)
+            .map_err(|err| crate::exceptions::PgPqErrorKind(err))?;
         Ok(Self {
             encoder,
             buf: BytesMut::with_capacity(BUFF_SIZE),
